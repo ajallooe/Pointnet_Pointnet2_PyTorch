@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-from models.pointnet2_utils import PointNetSetAbstraction,PointNetFeaturePropagation
+from .pointnet2_utils import PointNetSetAbstraction,PointNetFeaturePropagation
 
 
 class get_model(nn.Module):
@@ -38,7 +38,11 @@ class get_model(nn.Module):
         # Feature Propagation layers
         l2_points = self.fp3(l2_xyz, l3_xyz, l2_points, l3_points)
         l1_points = self.fp2(l1_xyz, l2_xyz, l1_points, l2_points)
-        cls_label_one_hot = cls_label.view(B,16,1).repeat(1,1,N)
+        # Replacement for correct one-hot encoding:
+        num_object_categories = 16 # Standard for ShapeNet parts
+        one_hot_feat = torch.zeros(B, num_object_categories, device=cls_label.device, dtype=torch.float)
+        one_hot_feat.scatter_(1, cls_label.long().unsqueeze(-1), 1)
+        cls_label_one_hot = one_hot_feat.view(B, num_object_categories, 1).repeat(1, 1, N)
         l0_points = self.fp1(l0_xyz, l1_xyz, torch.cat([cls_label_one_hot,l0_xyz,l0_points],1), l1_points)
         # FC layers
         feat =  F.relu(self.bn1(self.conv1(l0_points)))
